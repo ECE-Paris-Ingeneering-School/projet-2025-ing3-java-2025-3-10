@@ -6,33 +6,60 @@ import Modele.Commentaire;
 import Modele.Users;
 import Vue.CommentaireVue;
 
+import javax.swing.*;
+import java.util.List;
+import java.util.stream.Collectors;
+
 public class CommentaireControleur {
 
-    private Users userConnecte;
-    private CommentaireDAO commentaireDAO;
+    private final Users           userConnecte;
+    private final int             idLogement;
+    private final CommentaireDAO  commentaireDAO;
 
-    public CommentaireControleur(Users userConnecte) {
-        this.userConnecte = userConnecte;
-        this.commentaireDAO = new CommentaireDAOImpl(); // ou injection
+    public CommentaireControleur(Users userConnecte, int idLogement) {
+        this.userConnecte   = userConnecte;
+        this.idLogement     = idLogement;
+        this.commentaireDAO = new CommentaireDAOImpl();
     }
 
-    public void afficherFormulaireCommentaire() {
-        CommentaireVue cv = new CommentaireVue();
-        cv.setVisible(true);
+    /**
+     * Initialise et retourne le panel de commentaires préchargé.
+     * Tu pourras l'injecter dans ta PageAnnonceVue via add(...).
+     */
+    public CommentaireVue creerCommentairePanel() {
+        CommentaireVue vue = new CommentaireVue();
 
-        cv.getBtnEnvoyer().addActionListener(e -> {
-            int idCommentaire = 10; // ex
-            int idLogement = cv.getIdLogement();
-            String texte = cv.getContenu();
+        // 1) Charger les commentaires existants
+        List<String> textes = commentaireDAO.findByLogementId(idLogement)
+                .stream()
+                .map(Commentaire::getContenu)
+                .collect(Collectors.toList());
+        vue.setCommentaires(textes);
 
+        // 2) Attacher le handler “Envoyer”
+        vue.addEnvoyerListener(e -> {
+            String texte = vue.getChampCommentaire();
+            if (texte.isEmpty()) {
+                JOptionPane.showMessageDialog(vue,
+                        "Le commentaire ne peut pas être vide.",
+                        "Attention",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            // Créer et persister
             Commentaire c = new Commentaire();
-            c.setID_commentaire(idCommentaire);
+            c.setID_commentaire(0);       // 0 → DAO générera max+1
             c.setContenu(texte);
             c.setID_logement(idLogement);
             c.setID(userConnecte.getID());
-
             commentaireDAO.create(c);
-            cv.afficherMessage("Commentaire envoyé !");
+
+            // Rafraîchir la vue
+            vue.ajouterCommentaire(texte);
+            vue.clearChampCommentaire();
         });
+
+        return vue;
     }
 }
